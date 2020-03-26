@@ -27,7 +27,7 @@ parser.add_argument('--learning-rate-decay-rate', type=float, default=.98)
 parser.add_argument('--learning-rate-decay-steps', type=int, default=10000)
 parser.add_argument('--train-on', type=str, default='MAESTRO', choices=['MAESTRO', 'MAPS'])
 parser.add_argument('--leave-one-out', type=str, default=None, nargs='*',
-                    choices=['2004', '2006', '2008', '2009', '2011', '2013', '2014', '2015', '2017'])
+                    choices=['2004', '2006', '2008', '2009', '2011', '2013', '2014', '2015', '2017', '2018'])
 parser.add_argument('--maestro-folder', type=str, default='data/MAESTRO', help='The path to the MAESTRO dataset.')
 parser.add_argument('--maps-folder', type=str, default='data/MAPS', help='The path to the MAPS dataset.')
 
@@ -71,7 +71,7 @@ validation_length = sequence_length
 if train_on == 'MAESTRO':
 
     if leave_one_out is not None:
-        all_years = {'2004', '2006', '2008', '2009', '2011', '2013', '2014', '2015', '2017'}
+        all_years = {'2004', '2006', '2008', '2009', '2011', '2013', '2014', '2015', '2017', '2018'}
         train_groups = list(all_years - {str(leave_one_out)})
         validation_groups = [str(leave_one_out)]
     else:
