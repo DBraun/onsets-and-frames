@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 
 
 def extract_notes(onsets, frames, velocity, onset_threshold=0.5, frame_threshold=0.5):
@@ -8,9 +7,9 @@ def extract_notes(onsets, frames, velocity, onset_threshold=0.5, frame_threshold
 
     Parameters
     ----------
-    onsets: torch.FloatTensor, shape = [frames, bins]
-    frames: torch.FloatTensor, shape = [frames, bins]
-    velocity: torch.FloatTensor, shape = [frames, bins]
+    onsets: tensorflow.Tensor, shape = [frames, bins]
+    frames: tensorflow.Tensor, shape = [frames, bins]
+    velocity: tensorflow.Tensor, shape = [frames, bins]
     onset_threshold: float
     frame_threshold: float
 
@@ -20,17 +19,27 @@ def extract_notes(onsets, frames, velocity, onset_threshold=0.5, frame_threshold
     intervals: np.ndarray of rows containing (onset_index, offset_index)
     velocities: np.ndarray of velocity values
     """
-    onsets = (onsets > onset_threshold).cpu().to(torch.uint8)
-    frames = (frames > frame_threshold).cpu().to(torch.uint8)
-    onset_diff = torch.cat([onsets[:1, :], onsets[1:, :] - onsets[:-1, :]], dim=0) == 1
+    onsets = onsets.numpy()
+    frames = frames.numpy()
+    velocity = velocity.numpy()
+
+    onsets = onsets > onset_threshold
+    frames = frames > frame_threshold
+
+    onsets = onsets.astype(np.uint8)
+    frames = frames.astype(np.uint8)
+
+    # Subtract with one-frame offset and look for values of 1. These are the frames at which
+    # previous frame was zero and the current frame is one.
+    onset_diff = np.concatenate([onsets[:1, :], onsets[1:, :] - onsets[:-1, :]], axis=0) == 1
+    onset_diff = onset_diff.astype(np.uint8) # convert bool to integer
 
     pitches = []
     intervals = []
     velocities = []
 
-    for nonzero in onset_diff.nonzero():
-        frame = nonzero[0].item()
-        pitch = nonzero[1].item()
+    nonzeros = onset_diff.nonzero() # nonzero in numpy is a little different than pytorch?
+    for frame, pitch in zip(nonzeros[0], nonzeros[1]):
 
         onset = frame
         offset = frame

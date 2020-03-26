@@ -4,124 +4,104 @@ A rough translation of Magenta's Onsets and Frames implementation [1].
     [1] https://github.com/tensorflow/magenta/blob/master/magenta/models/onsets_frames_transcription/model.py
 """
 
-import torch
-import torch.nn.functional as F
-from torch import nn
+from .lstm import BidirectionalLSTM
 
-from .lstm import BiLSTM
-from .mel import melspectrogram
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.layers import Dense, Conv2D, InputLayer, Dropout, MaxPool2D, BatchNormalization, Flatten, Permute
+from tensorflow.keras.layers import Reshape
 
-
-class ConvStack(nn.Module):
-    def __init__(self, input_features, output_features):
-        super().__init__()
-
+class ConvStack(keras.Sequential):
+    def __init__(self, output_features, input_shape=None, **kwargs):
         # input is batch_size * 1 channel * frames * input_features
-        self.cnn = nn.Sequential(
+
+        super().__init__([
+            InputLayer(input_shape=input_shape),
             # layer 0
-            nn.Conv2d(1, output_features // 16, (3, 3), padding=1),
-            nn.BatchNorm2d(output_features // 16),
-            nn.ReLU(),
+            Conv2D(output_features // 16, 3, padding='same', data_format='channels_first'),
+            BatchNormalization(),
             # layer 1
-            nn.Conv2d(output_features // 16, output_features // 16, (3, 3), padding=1),
-            nn.BatchNorm2d(output_features // 16),
-            nn.ReLU(),
+            Conv2D(output_features // 16, 3, padding='same', data_format='channels_first'),
+            BatchNormalization(),
             # layer 2
-            nn.MaxPool2d((1, 2)),
-            nn.Dropout(0.25),
-            nn.Conv2d(output_features // 16, output_features // 8, (3, 3), padding=1),
-            nn.BatchNorm2d(output_features // 8),
-            nn.ReLU(),
+            MaxPool2D((1, 2)),
+            Dropout(0.25),
+            Conv2D(output_features // 8, 3, padding='same', data_format='channels_first'),
+            BatchNormalization(),
             # layer 3
-            nn.MaxPool2d((1, 2)),
-            nn.Dropout(0.25),
-        )
-        self.fc = nn.Sequential(
-            nn.Linear((output_features // 8) * (input_features // 4), output_features),
-            nn.Dropout(0.5)
-        )
+            MaxPool2D((1, 2), data_format='channels_first'),
+            Dropout(0.25),
 
-    def forward(self, mel):
-        x = mel.view(mel.size(0), 1, mel.size(1), mel.size(2))
-        x = self.cnn(x)
-        x = x.transpose(1, 2).flatten(-2)
-        x = self.fc(x)
-        return x
+            # https://github.com/jongwook/onsets-and-frames/blob/f5f5bc812a45d88f029452e52ad76ff742626ec3/onsets_and_frames/transcriber.py#L47
+            Permute((2,1,3)), # swap the channel (filter count) with the frame index.
+
+            # collapse the filter count and output_features, resulting in
+            # a shape of (frames, (output_features // 8) * (input_shape[-1] // 4)))
+            Reshape((-1, (output_features // 8) * (input_shape[-1] // 4))), # todo: very hard to understand this
+            # https://github.com/jongwook/onsets-and-frames/blob/f5f5bc812a45d88f029452e52ad76ff742626ec3/onsets_and_frames/transcriber.py#L40
+
+            # fully connected
+            Dense(output_features),
+            Dropout(0.5)
+        ], **kwargs)
 
 
-class OnsetsAndFrames(nn.Module):
-    def __init__(self, input_features, output_features, model_complexity=48):
-        super().__init__()
+class OnsetsAndFrames(keras.models.Model):
 
-        model_size = model_complexity * 16
-        sequence_model = lambda input_size, output_size: BiLSTM(input_size, output_size // 2)
+    def __init__(self, num_pitch_classes, model_complexity=48, **kwargs):
 
-        self.onset_stack = nn.Sequential(
-            ConvStack(input_features, model_size),
-            sequence_model(model_size, model_size),
-            nn.Linear(model_size, output_features),
-            nn.Sigmoid()
-        )
-        self.offset_stack = nn.Sequential(
-            ConvStack(input_features, model_size),
-            sequence_model(model_size, model_size),
-            nn.Linear(model_size, output_features),
-            nn.Sigmoid()
-        )
-        self.frame_stack = nn.Sequential(
-            ConvStack(input_features, model_size),
-            nn.Linear(model_size, output_features),
-            nn.Sigmoid()
-        )
-        self.combined_stack = nn.Sequential(
-            sequence_model(output_features * 3, model_size),
-            nn.Linear(model_size, output_features),
-            nn.Sigmoid()
-        )
-        self.velocity_stack = nn.Sequential(
-            ConvStack(input_features, model_size),
-            nn.Linear(model_size, output_features)
-        )
+        self.model_size = model_complexity * 16 # because ConvStack class needs a model size multiple of 8
+        self.num_pitch_classes = num_pitch_classes
 
-    def forward(self, mel):
+        super().__init__(**kwargs)
+
+    def build(self, dims):
+
+        # dims should be:
+        # (batch size, 1 channel, num frames, num pitch classes)
+
+        shape = (dims[-3], dims[-2], dims[-1])
+        # shape should be:
+        # (1 channel, num frames, num pitch classes)
+
+        self.onset_stack = keras.Sequential([
+            ConvStack(self.model_size, input_shape=shape),
+            BidirectionalLSTM(self.model_size, self.model_size),
+            Dense(self.num_pitch_classes, activation='sigmoid', name='onset'),
+        ])
+
+        self.offset_stack = keras.Sequential([
+            ConvStack(self.model_size, input_shape=shape),
+            BidirectionalLSTM(self.model_size, self.model_size),
+            Dense(self.num_pitch_classes, activation='sigmoid', name='offset')
+        ])
+
+        self.frame_stack = keras.Sequential([
+            ConvStack(self.model_size, input_shape=shape),
+            Dense(self.num_pitch_classes, activation='sigmoid')
+        ])
+
+        self.combined_stack = keras.Sequential([
+            BidirectionalLSTM(self.num_pitch_classes*3, self.model_size),
+            Dense(self.num_pitch_classes, activation='sigmoid')
+        ])
+
+        self.velocity_stack = keras.Sequential([
+            ConvStack(self.model_size, input_shape=shape),
+            Dense(self.num_pitch_classes, activation='sigmoid')
+        ])
+
+        # super().build(dims) todo: can we call super?
+
+    def call(self, inputs, training=False):
+
+        mel = inputs
+
         onset_pred = self.onset_stack(mel)
         offset_pred = self.offset_stack(mel)
         activation_pred = self.frame_stack(mel)
-        combined_pred = torch.cat([onset_pred.detach(), offset_pred.detach(), activation_pred], dim=-1)
+        combined_pred = tf.concat([onset_pred, offset_pred, activation_pred], -1)
         frame_pred = self.combined_stack(combined_pred)
         velocity_pred = self.velocity_stack(mel)
-        return onset_pred, offset_pred, activation_pred, frame_pred, velocity_pred
 
-    def run_on_batch(self, batch):
-        audio_label = batch['audio']
-        onset_label = batch['onset']
-        offset_label = batch['offset']
-        frame_label = batch['frame']
-        velocity_label = batch['velocity']
-
-        mel = melspectrogram(audio_label.reshape(-1, audio_label.shape[-1])[:, :-1]).transpose(-1, -2)
-        onset_pred, offset_pred, _, frame_pred, velocity_pred = self(mel)
-
-        predictions = {
-            'onset': onset_pred.reshape(*onset_label.shape),
-            'offset': offset_pred.reshape(*offset_label.shape),
-            'frame': frame_pred.reshape(*frame_label.shape),
-            'velocity': velocity_pred.reshape(*velocity_label.shape)
-        }
-
-        losses = {
-            'loss/onset': F.binary_cross_entropy(predictions['onset'], onset_label),
-            'loss/offset': F.binary_cross_entropy(predictions['offset'], offset_label),
-            'loss/frame': F.binary_cross_entropy(predictions['frame'], frame_label),
-            'loss/velocity': self.velocity_loss(predictions['velocity'], velocity_label, onset_label)
-        }
-
-        return predictions, losses
-
-    def velocity_loss(self, velocity_pred, velocity_label, onset_label):
-        denominator = onset_label.sum()
-        if denominator.item() == 0:
-            return denominator
-        else:
-            return (onset_label * (velocity_label - velocity_pred) ** 2).sum() / denominator
-
+        return onset_pred, offset_pred, frame_pred, velocity_pred

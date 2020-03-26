@@ -1,6 +1,3 @@
-import torch
-
-
 SAMPLE_RATE = 16000
 HOP_LENGTH = SAMPLE_RATE * 32 // 1000
 ONSET_LENGTH = SAMPLE_RATE * 32 // 1000
@@ -14,5 +11,3 @@ N_MELS = 229
 MEL_FMIN = 30
 MEL_FMAX = SAMPLE_RATE // 2
 WINDOW_LENGTH = 2048
-
-DEFAULT_DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'

@@ -1,14 +1,14 @@
 #! /bin/bash
 set -e
 
-echo Downloading the MAESTRO dataset \(87 GB\) ...
-curl -O https://storage.googleapis.com/magentadata/datasets/maestro/v1.0.0/maestro-v1.0.0.zip
+echo Downloading the MAESTRO dataset \(103 GB\) ...
+curl -O https://storage.googleapis.com/magentadata/datasets/maestro/v2.0.0/maestro-v2.0.0.zip
 
 echo Extracting the files ...
-unzip -o maestro-v1.0.0.zip | awk 'BEGIN{ORS=""} {print "\rExtracting " NR "/2383 ..."; system("")} END {print "\ndone\n"}'
+unzip -o maestro-v2.0.0.zip | awk 'BEGIN{ORS=""} {print "\rExtracting " NR "/2383 ..."; system("")} END {print "\ndone\n"}'
 
-rm maestro-v1.0.0.zip
-mv maestro-v1.0.0 MAESTRO
+rm maestro-v2.0.0.zip
+mv maestro-v2.0.0 MAESTRO
 
 echo Converting the audio files to FLAC ...
 COUNTER=0
