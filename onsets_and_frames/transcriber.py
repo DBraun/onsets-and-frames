@@ -9,7 +9,7 @@ from .lstm import BidirectionalLSTM
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import Dense, Conv2D, InputLayer, Dropout, MaxPool2D, BatchNormalization, Flatten, Permute
-from tensorflow.keras.layers import Reshape
+from tensorflow.keras.layers import Reshape, ReLU
 
 class ConvStack(keras.Sequential):
     def __init__(self, output_features, input_shape=None, **kwargs):
@@ -20,14 +20,17 @@ class ConvStack(keras.Sequential):
             # layer 0
             Conv2D(output_features // 16, 3, padding='same', data_format='channels_first'),
             BatchNormalization(),
+            ReLU(),
             # layer 1
             Conv2D(output_features // 16, 3, padding='same', data_format='channels_first'),
             BatchNormalization(),
+            ReLU(),
             # layer 2
             MaxPool2D((1, 2)),
             Dropout(0.25),
             Conv2D(output_features // 8, 3, padding='same', data_format='channels_first'),
             BatchNormalization(),
+            ReLU(),
             # layer 3
             MaxPool2D((1, 2), data_format='channels_first'),
             Dropout(0.25),
