@@ -53,7 +53,7 @@ class OnsetsAndFrames(keras.models.Model):
 
     def __init__(self, num_pitch_classes, model_complexity=48, **kwargs):
 
-        self.model_size = model_complexity * 16 # because ConvStack class needs a model size multiple of 8
+        self.model_size = model_complexity * 16 # because ConvStack class needs a model size multiple of 16
         self.num_pitch_classes = num_pitch_classes
 
         super().__init__(**kwargs)
@@ -91,7 +91,7 @@ class OnsetsAndFrames(keras.models.Model):
 
         self.velocity_stack = keras.Sequential([
             ConvStack(self.model_size, input_shape=shape),
-            Dense(self.num_pitch_classes, activation='sigmoid')
+            Dense(self.num_pitch_classes, activation=None)
         ])
 
         # super().build(dims) todo: can we call super?
