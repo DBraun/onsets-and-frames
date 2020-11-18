@@ -32,13 +32,13 @@ def extract_notes(onsets, frames, velocity, onset_threshold=0.5, frame_threshold
     # Subtract with one-frame offset and look for values of 1. These are the frames at which
     # previous frame was zero and the current frame is one.
     onset_diff = np.concatenate([onsets[:1, :], onsets[1:, :] - onsets[:-1, :]], axis=0) == 1
-    onset_diff = onset_diff.astype(np.uint8) # convert bool to integer
+    onset_diff = onset_diff.astype(np.uint8)  # convert bool to integer
 
     pitches = []
     intervals = []
     velocities = []
 
-    nonzeros = onset_diff.nonzero() # nonzero in numpy is a little different than pytorch?
+    nonzeros = onset_diff.nonzero()  # nonzero in numpy is a little different than pytorch?
     for frame, pitch in zip(nonzeros[0], nonzeros[1]):
 
         onset = frame
@@ -55,7 +55,9 @@ def extract_notes(onsets, frames, velocity, onset_threshold=0.5, frame_threshold
         if offset > onset:
             pitches.append(pitch)
             intervals.append([onset, offset])
-            velocities.append(np.mean(velocity_samples) if len(velocity_samples) > 0 else 0)
+            velo = np.mean(velocity_samples).item() if len(velocity_samples) > 0 else 0
+            velo = max(.0001, velo)  # NB: velocity can't be zero for some mir_eval stuff.
+            velocities.append(velo)
 
     return np.array(pitches), np.array(intervals), np.array(velocities)
 

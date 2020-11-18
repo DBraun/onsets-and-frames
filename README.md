@@ -92,3 +92,6 @@ Training 100 epochs on MAESTRO and evaluating on MAPS:
 * [Jong Wook Kim](https://github.com/jongwook/)
 * [Magenta](https://magenta.tensorflow.org/)
  
+
+ ## TODO:
+ When processing the MAPS MIDI files for training and evaluation, we first translate “sustain pedal” control changes into longer note durations. If a note is active when sustain goes on, that note will be extended until either sustain goes off or the same note is played again. This process gives the same note durations as the text files included with the dataset.

@@ -1,6 +1,7 @@
 from PIL import Image
 import numpy as np
 
+
 def save_pianoroll(path, onsets, frames, onset_threshold=0.5, frame_threshold=0.5, zoom=4):
     """
     Saves a piano roll diagram
@@ -22,7 +23,7 @@ def save_pianoroll(path, onsets, frames, onset_threshold=0.5, frame_threshold=0.
     frames = (1 - (np.transpose(frames) > frame_threshold).astype(np.uint8))
     both = (1 - (1 - onsets) * (1 - frames))
 
-    image = np.stack([onsets,frames,both], axis=2)
+    image = np.stack([onsets, frames, both], axis=2)
     image = np.flip(image, axis=0)*255
 
     image = Image.fromarray(image, 'RGB')
