@@ -104,20 +104,15 @@ def evaluate(metrics, model, inputs, targets, onset_threshold=0.5, frame_thresho
     return metrics
 
 
-def evaluate_file(checkpoint_dir, save_path, sequence_length, onset_threshold, frame_threshold):
+def evaluate_file(checkpoint_dir, model_complexity, save_path, maps_folder, sequence_length, onset_threshold,
+                  frame_threshold):
 
     # Create default model and optimizer even though they'll be replaced with the checkpoint.
-    model = OnsetsAndFrames(MAX_MIDI - MIN_MIDI + 1)
-    optimizer = keras.optimizers.Adam(.0001)
+    model = OnsetsAndFrames(num_pitch_classes=MAX_MIDI - MIN_MIDI + 1, model_complexity=model_complexity)
+    model.dumb_predict(sequence_length)
+    model.load_weights(os.path.join(os.path.abspath(checkpoint_dir), 'best_val_total_loss.ckpt'))
 
-    ckpt = tf.train.Checkpoint(step=tf.Variable(0), optimizer=optimizer, net=model)
-    manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=3)
-
-    ckpt.restore(manager.latest_checkpoint).expect_partial()
-    if manager.latest_checkpoint:
-        tf.print("Restored from {}".format(manager.latest_checkpoint))
-
-    dataset = get_MAPS_Dataset('E:/data/MAPS', sequence_length=sequence_length)
+    dataset = get_MAPS_Dataset(maps_folder, sequence_length=sequence_length)
     dataset = dataset.batch(1)
 
     metrics = defaultdict(list)
@@ -133,9 +128,11 @@ def evaluate_file(checkpoint_dir, save_path, sequence_length, onset_threshold, f
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--checkpoint-dir', type=str, required=True, default=None)
+    parser.add_argument('--model-complexity', type=int, default=48)
     parser.add_argument('--save-path', type=str, required=False, default='evaluated',
                         help="If you want to save MIDI and piano roll images, specify a folder.")
-    parser.add_argument('--sequence-length', default=SAMPLE_RATE*180, type=int) # todo: debug. some FLAC files might be too large for 8-GB GPUS
+    parser.add_argument('--maps-folder', type=str, default='data/maps', help='The path to the MAPS dataset.')
+    parser.add_argument('--sequence-length', default=327680, type=int)
     parser.add_argument('--onset-threshold', default=0.5, type=float)
     parser.add_argument('--frame-threshold', default=0.5, type=float)
 

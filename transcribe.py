@@ -9,7 +9,6 @@ from mir_eval.util import midi_to_hz
 
 from onsets_and_frames import *
 import tensorflow as tf
-from tensorflow import keras
 
 
 def load_and_process_audio(flac_path, sequence_length):
@@ -57,27 +56,15 @@ def transcribe(model, audio):
     return predictions
 
 
-def transcribe_file(checkpoint_dir, flac_paths, save_path, sequence_length,
+def transcribe_file(checkpoint_dir, model_complexity, flac_paths, save_path, sequence_length,
                     onset_threshold, frame_threshold):
 
     # Create default model and optimizer even though they'll be replaced with the checkpoint.
-    model = OnsetsAndFrames(MAX_MIDI - MIN_MIDI + 1)
-    optimizer = keras.optimizers.Adam(.0001)
-
-    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=model)
-    manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=3)
-
-    ckpt.restore(manager.latest_checkpoint).expect_partial()
-    if manager.latest_checkpoint:
-        tf.print("Restored from {}".format(manager.latest_checkpoint))
+    model = OnsetsAndFrames(num_pitch_classes=MAX_MIDI - MIN_MIDI + 1, model_complexity=model_complexity)
+    model.dumb_predict(sequence_length)  # We need to run the model on some data before we can load weights.
+    model.load_weights(os.path.join(os.path.abspath(checkpoint_dir), 'best_val_total_loss.ckpt'))
 
     globbed_paths = glob.glob(flac_paths)
-
-    # do a transcription just to be able to call model.summary()
-    # audio = load_and_process_audio(globbed_paths[0], sequence_length)
-    # audio = tf.expand_dims(audio, 0)
-    # predictions = transcribe(model, audio)
-    # model.summary()
 
     for flac_path in globbed_paths:
         print(f'Processing FLAC: {flac_path}', file=sys.stderr)
@@ -106,11 +93,12 @@ def transcribe_file(checkpoint_dir, flac_paths, save_path, sequence_length,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--checkpoint-dir', type=str, required=True, default=None)
+    parser.add_argument('--model-complexity', type=int, default=48)
     parser.add_argument('--flac-paths', type=str, required=True, default='glob/path/for/*.flac',
                         help='A glob* expression for finding FLAC files.')
     parser.add_argument('--save-path', type=str, required=True, default='evaluated',
                         help='Directory for saving MIDI and piano roll PNG files.')
-    parser.add_argument('--sequence-length', default=None, type=int, help='Trim audio to this number of samples.')
+    parser.add_argument('--sequence-length', default=327680, type=int, help='Trim audio to this number of samples.')
     parser.add_argument('--onset-threshold', default=0.5, type=float)
     parser.add_argument('--frame-threshold', default=0.5, type=float)
 

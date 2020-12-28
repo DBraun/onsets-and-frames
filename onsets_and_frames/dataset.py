@@ -11,6 +11,7 @@ from .midi import parse_midi
 import tensorflow as tf
 import tensorlayer
 
+
 def maps_file_iterable(rootpath, groups=None):
 
     valid_groups = ['ENSTDkAm', 'ENSTDkCl'] if groups is None else groups
@@ -35,7 +36,7 @@ def maps_file_iterable(rootpath, groups=None):
     return results
 
 
-def maestro_file_iterable(roothpath, groups=None):
+def maestro_file_iterable(rootpath, groups=None):
 
     valid_groups = ['train'] if groups is None else groups
 
@@ -44,18 +45,18 @@ def maestro_file_iterable(roothpath, groups=None):
 
         if group not in ['train', 'validation', 'test']:
             # year-based grouping
-            flacs = sorted(glob(os.path.join(roothpath, group, '*.flac')))
+            flacs = sorted(glob(os.path.join(rootpath, group, '*.flac')))
             if len(flacs) == 0:
-                flacs = sorted(glob(os.path.join(roothpath, group, '*.wav')))
+                flacs = sorted(glob(os.path.join(rootpath, group, '*.wav')))
 
-            midis = sorted(glob(os.path.join(roothpath, group, '*.midi')))
+            midis = sorted(glob(os.path.join(rootpath, group, '*.midi')))
             files = list(zip(flacs, midis))
             if len(files) == 0:
                 raise RuntimeError(f'Group {group} is empty')
         else:
-            metadata = json.load(open(os.path.join(roothpath, 'maestro-v2.0.0.json')))
-            files = sorted([(os.path.join(roothpath, row['audio_filename'].replace('.wav', '.flac')),
-                             os.path.join(roothpath, row['midi_filename'])) for row in metadata if row['split'] == group])
+            metadata = json.load(open(os.path.join(rootpath, 'maestro-v2.0.0.json')))
+            files = sorted([(os.path.join(rootpath, row['audio_filename'].replace('.wav', '.flac')),
+                             os.path.join(rootpath, row['midi_filename'])) for row in metadata if row['split'] == group])
 
             files = [(audio if os.path.exists(audio) else audio.replace('.flac', '.wav'), midi) for audio, midi in files]
 
@@ -133,7 +134,7 @@ def load_audio_and_tsv(audio_path, tsv_path):
 
 def make_post_process(sequence_length, seed):
 
-    randomState = np.random.RandomState(seed) # todo: weird variable pollution idea
+    randomState = np.random.RandomState(seed)  # todo: weird variable pollution idea
 
     def generator(data):
 
